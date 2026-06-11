@@ -5,21 +5,16 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import type { DigitalSelfData, DashboardStats } from "@/types"
 
-const accentColors: Record<string, string> = {
-  teal: "var(--accent-teal)",
-  tealLight: "var(--accent-teal-light)",
-  gold: "var(--accent-gold)",
-  goldLight: "var(--accent-gold-light)",
-  ember: "var(--accent-ember)",
-}
-
 export default function DashboardHome() {
   const { data: session } = useSession()
   const [digitalSelf, setDigitalSelf] = useState<DigitalSelfData | null>(null)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [agentFeed, setAgentFeed] = useState<string[]>([])
+  const [mounted, setMounted] = useState(false)
 
+  useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
+    if (!mounted) return
     async function loadData() {
       const [dsRes, goalsRes, roadmapsRes] = await Promise.all([
         fetch("/api/digital-self"),
@@ -53,89 +48,185 @@ export default function DashboardHome() {
       ])
     }
     loadData()
-  }, [])
+  }, [mounted])
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="spinner" />
+      </div>
+    )
+  }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10">
-      {/* Welcome */}
+    <div className="space-y-10">
+      {/* Welcome Header */}
       <div className="animate-in">
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tighter" style={{ color: "var(--text-primary)" }}>
+        <div className="eyebrow mb-5">
+          <span className="eyebrow-dot eyebrow-dot--purple" />
+          Dashboard
+        </div>
+        <h1
+          className="text-3xl md:text-4xl tracking-tight"
+          style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)", fontWeight: 400, lineHeight: 1.15 }}
+        >
           Welcome back, {session?.user?.name || "Explorer"}
         </h1>
-        <p className="mt-2" style={{ color: "var(--text-secondary)" }}>Here&apos;s your evolution overview</p>
+        <p
+          className="mt-3 text-base"
+          style={{ color: "var(--text-secondary)", fontWeight: 300 }}
+        >
+          Here&apos;s your evolution overview
+        </p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" data-stagger>
         {[
-          { label: "Active Goals", value: stats?.goalsCount || 0, accent: accentColors.teal },
-          { label: "Active Roadmaps", value: stats?.activeRoadmaps || 0, accent: accentColors.gold },
-          { label: "Milestones Done", value: `${stats?.completedMilestones || 0}/${stats?.totalMilestones || 0}`, accent: accentColors.ember },
-          { label: "Achievements", value: stats?.achievementsCount || 0, accent: accentColors.tealLight },
+          { label: "Active Goals", value: stats?.goalsCount || 0, accent: "var(--accent-primary)", icon: "◎" },
+          { label: "Active Roadmaps", value: stats?.activeRoadmaps || 0, accent: "var(--accent-warm)", icon: "◆" },
+          { label: "Milestones Done", value: `${stats?.completedMilestones || 0}/${stats?.totalMilestones || 0}`, accent: "var(--accent-secondary)", icon: "◈" },
+          { label: "Achievements", value: stats?.achievementsCount || 0, accent: "var(--accent-emerald)", icon: "◇" },
         ].map((item, i) => (
-          <div key={item.label} className="bezel-card" style={{ animationDelay: `${i * 80}ms` }}>
-            <div className="bezel-card-inner">
-              <div className="w-8 h-8 rounded-lg mb-3" style={{ background: item.accent }} />
-              <p className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{item.value}</p>
-              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>{item.label}</p>
+          <div key={item.label} className="premium-card magnetic-card" style={{ animationDelay: `${i * 80}ms` }}>
+            <div className="flex items-start justify-between mb-5">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-base"
+                style={{
+                  background: `${item.accent}20`,
+                  color: item.accent,
+                  boxShadow: `0 0 18px ${item.accent}18`,
+                }}
+              >
+                {item.icon}
+              </div>
+              <span
+                className="text-[10px] uppercase tracking-[0.1em] font-bold"
+                style={{ color: "var(--text-whisper)" }}
+              >
+                Stat
+              </span>
             </div>
+            <p
+              className="text-3xl font-bold tracking-tight mb-1"
+              style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}
+            >
+              {item.value}
+            </p>
+            <p className="text-xs font-semibold tracking-wide" style={{ color: "var(--text-muted)" }}>
+              {item.label}
+            </p>
           </div>
         ))}
       </div>
 
       {/* Digital Self + Agent Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bezel-card">
-          <div className="bezel-card-inner">
-            <h2 className="text-lg font-semibold mb-6" style={{ color: "var(--text-primary)" }}>Digital Self</h2>
-            <div className="space-y-5">
-              {[
-                { label: "Knowledge", value: digitalSelf?.knowledgeScore || 0, accent: accentColors.teal },
-                { label: "Career", value: digitalSelf?.careerScore || 0, accent: accentColors.gold },
-                { label: "Opportunity", value: digitalSelf?.opportunityScore || 0, accent: accentColors.ember },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span style={{ color: "var(--text-secondary)" }}>{item.label}</span>
-                    <span className="font-medium" style={{ color: "var(--text-primary)" }}>{item.value}%</span>
-                  </div>
-                  <div className="progress-bar">
-                    <div className="progress-bar-fill" style={{ width: `${item.value}%`, background: item.accent }} />
-                  </div>
-                </div>
-              ))}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        {/* Digital Self */}
+        <div className="lg:col-span-3 premium-card premium-card-elevated">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-lg font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
+                Digital Self
+              </h2>
+              <p className="text-xs mt-1 font-medium tracking-wide" style={{ color: "var(--text-muted)" }}>
+                Living Human Model
+              </p>
             </div>
+            <div className="pill" style={{ fontSize: "0.6rem" }}>
+              <span className="pill-dot pill-dot--purple" style={{ width: "0.3rem", height: "0.3rem" }} />
+              Live
+            </div>
+          </div>
+          <div className="space-y-6">
+            {[
+              { label: "Knowledge", value: digitalSelf?.knowledgeScore || 0, accent: "var(--accent-primary)" },
+              { label: "Career", value: digitalSelf?.careerScore || 0, accent: "var(--accent-warm)" },
+              { label: "Opportunity", value: digitalSelf?.opportunityScore || 0, accent: "var(--accent-secondary)" },
+            ].map((item) => (
+              <div key={item.label}>
+                <div className="flex justify-between text-sm mb-2.5">
+                  <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>{item.label}</span>
+                  <span className="font-bold tabular-nums" style={{ color: item.accent }}>{item.value}%</span>
+                </div>
+                <div className="progress-track">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${item.value}%`, background: item.accent, color: item.accent }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="bezel-card">
-          <div className="bezel-card-inner">
-            <h2 className="text-lg font-semibold mb-6" style={{ color: "var(--text-primary)" }}>Agent Activity</h2>
-            <div className="space-y-4">
-              {agentFeed.map((feed, i) => (
-                <div key={i} className="flex items-start gap-3" style={{ animation: `fadeInUp 0.5s ${i * 100}ms var(--ease-out-expo) forwards`, opacity: 0 }}>
-                  <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={{ background: accentColors.gold }} />
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{feed}</p>
-                </div>
-              ))}
+        {/* Agent Activity */}
+        <div className="lg:col-span-2 premium-card premium-card-elevated">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
+                Agent Activity
+              </h2>
+              <p className="text-xs mt-1 font-medium tracking-wide" style={{ color: "var(--text-muted)" }}>
+                Reasoning pipeline
+              </p>
             </div>
+            <div
+              className="w-2 h-2 rounded-full animate-pulse-soft"
+              style={{ background: "var(--accent-emerald)", boxShadow: "0 0 8px var(--accent-emerald-soft)" }}
+            />
+          </div>
+          <div className="space-y-3">
+            {agentFeed.map((feed, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-3"
+                style={{
+                  animation: `fadeInUp 0.5s ${i * 100 + 200}ms var(--ease-out) forwards`,
+                  opacity: 0,
+                }}
+              >
+                <div
+                  className="w-1.5 h-1.5 rounded-full mt-2 shrink-0"
+                  style={{ background: "var(--accent-warm)", boxShadow: "0 0 5px var(--accent-warm-soft)" }}
+                />
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  {feed}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-stagger>
         {[
-          { href: "/dashboard/nexus-ai", label: "Talk to Nexus AI", desc: "Chat with your reasoning agents", accent: accentColors.teal },
-          { href: "/dashboard/roadmap", label: "View Roadmaps", desc: "Track your learning progress", accent: accentColors.gold },
-          { href: "/dashboard/my-nexus", label: "My Nexus", desc: "See your Digital Self evolution", accent: accentColors.ember },
+          { href: "/dashboard/nexus-ai", label: "Talk to Nexus AI", desc: "Chat with your reasoning agents", accent: "var(--accent-primary)", icon: "◆" },
+          { href: "/dashboard/roadmap", label: "View Roadmaps", desc: "Track your learning progress", accent: "var(--accent-warm)", icon: "◈" },
+          { href: "/dashboard/my-nexus", label: "My Nexus", desc: "See your Digital Self evolution", accent: "var(--accent-secondary)", icon: "◇" },
         ].map((item) => (
-          <Link key={item.href} href={item.href} className="bezel-card group cursor-pointer">
-            <div className="bezel-card-inner">
-              <div className="w-10 h-10 rounded-xl mb-4 group-hover:scale-110 nexus-transition" style={{ background: item.accent }} />
-              <h3 className="font-semibold text-lg" style={{ color: "var(--text-primary)" }}>{item.label}</h3>
-              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>{item.desc}</p>
+          <Link
+            key={item.href}
+            href={item.href}
+            className="premium-card magnetic-card group no-underline"
+          >
+            <div
+              className="w-11 h-11 rounded-xl mb-5 flex items-center justify-center text-lg transition-all duration-500"
+              style={{
+                background: `${item.accent}18`,
+                color: item.accent,
+                boxShadow: `0 0 18px ${item.accent}15`,
+              }}
+            >
+              {item.icon}
             </div>
+            <h3 className="font-semibold text-base mb-1.5" style={{ color: "var(--text-primary)" }}>
+              {item.label}
+            </h3>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {item.desc}
+            </p>
           </Link>
         ))}
       </div>

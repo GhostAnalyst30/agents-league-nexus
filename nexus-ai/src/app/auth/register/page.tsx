@@ -2,8 +2,12 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { signIn } from "next-auth/react"
+
+function AmbientBackground() {
+  return <div className="ambient-bg" aria-hidden="true" />
+}
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -12,6 +16,9 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -43,86 +50,157 @@ export default function RegisterPage() {
     }
   }
 
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-abyss)" }}>
+        <div className="spinner" />
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-6" style={{ background: "var(--bg-deep)" }}>
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6 no-underline">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[#0c0b0a] font-bold text-sm" style={{ background: "linear-gradient(135deg, var(--accent-gold), var(--accent-gold-light))" }}>
+    <div className="min-h-[100dvh] flex items-center justify-center px-6 relative overflow-hidden" style={{ background: "var(--bg-abyss)" }}>
+      <AmbientBackground />
+
+      <div className="w-full max-w-md relative z-10">
+        <div className="text-center mb-10">
+          <Link href="/" className="inline-flex items-center gap-3 mb-8 no-underline">
+            <div
+              className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-base"
+              style={{
+                background: "linear-gradient(135deg, var(--accent-aurum), #e8c547)",
+                color: "var(--bg-abyss)",
+                boxShadow: "0 0 24px var(--accent-aurum-soft)",
+              }}
+            >
               N
             </div>
-            <span className="font-semibold text-lg" style={{ color: "var(--text-primary)" }}>Nexus AI</span>
           </Link>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>Begin your evolution</h1>
-          <p className="mt-2" style={{ color: "var(--text-secondary)" }}>Create your account and start growing</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 rounded-lg" style={{ background: "rgba(196, 90, 58, 0.1)", border: "1px solid rgba(196, 90, 58, 0.2)", color: "var(--accent-ember)" }}>
-              {error}
-            </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg outline-none transition-colors"
-              style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}
-              placeholder="Your name"
-              onFocus={(e) => e.currentTarget.style.borderColor = "var(--accent-teal)"}
-              onBlur={(e) => e.currentTarget.style.borderColor = "var(--border-subtle)"}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg outline-none transition-colors"
-              style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}
-              placeholder="you@example.com"
-              required
-              onFocus={(e) => e.currentTarget.style.borderColor = "var(--accent-teal)"}
-              onBlur={(e) => e.currentTarget.style.borderColor = "var(--border-subtle)"}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg outline-none transition-colors"
-              style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}
-              placeholder="At least 8 characters"
-              minLength={8}
-              required
-              onFocus={(e) => e.currentTarget.style.borderColor = "var(--accent-teal)"}
-              onBlur={(e) => e.currentTarget.style.borderColor = "var(--border-subtle)"}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-lg font-medium transition-opacity disabled:opacity-50"
-            style={{ background: "var(--accent-teal)", color: "var(--text-primary)" }}
+          <h1
+            className="text-3xl md:text-4xl mb-3"
+            style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)", fontWeight: 400 }}
           >
-            {loading ? "Creating account..." : "Create Account"}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Already have an account?{" "}
-            <Link href="/auth/login" className="transition-colors" style={{ color: "var(--accent-gold)" }}>
-              Sign in
-            </Link>
+            Begin your evolution
+          </h1>
+          <p className="text-sm" style={{ color: "var(--text-secondary)", fontWeight: 300 }}>
+            Create your account and start growing
           </p>
         </div>
+
+        <div className="doppel-card doppel-card-glass">
+          <div className="doppel-card-inner">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div
+                  className="p-3.5 rounded-xl text-sm animate-fadeInDown"
+                  style={{
+                    background: "rgba(240, 104, 74, 0.08)",
+                    border: "1px solid rgba(240, 104, 74, 0.2)",
+                    color: "var(--accent-solar-light, #f89a7e)",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label
+                  className="block text-[11px] font-semibold mb-2 uppercase tracking-[0.1em]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="input-field"
+                  placeholder="Your name"
+                  required
+                />
+              </div>
+
+              <div>
+                <label
+                  className="block text-[11px] font-semibold mb-2 uppercase tracking-[0.1em]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-field"
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
+
+              <div>
+                <label
+                  className="block text-[11px] font-semibold mb-2 uppercase tracking-[0.1em]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-field"
+                  placeholder="At least 8 characters"
+                  minLength={8}
+                  required
+                />
+                <p className="text-[11px] mt-2" style={{ color: "var(--text-whisper)" }}>
+                  Minimum 8 characters
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn btn-primary btn-lg w-full"
+                style={{ marginTop: "0.5rem" }}
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="spinner-sm" />
+                    Creating account...
+                  </span>
+                ) : (
+                  "Create Account"
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <p className="text-center mt-8 text-sm" style={{ color: "var(--text-secondary)" }}>
+          Already have an account?{" "}
+          <Link
+            href="/auth/login"
+            className="font-semibold transition-colors"
+            style={{ color: "var(--accent-aurum)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#e8c547")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--accent-aurum)")}
+          >
+            Sign in
+          </Link>
+        </p>
+
+        <p className="text-center mt-3">
+          <Link
+            href="/"
+            className="text-xs transition-colors"
+            style={{ color: "var(--text-whisper)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-whisper)")}
+          >
+            ← Back to home
+          </Link>
+        </p>
       </div>
     </div>
   )

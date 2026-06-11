@@ -4,39 +4,7 @@ import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
-
-/* ───────────────────────────────────── */
-/*  HOOKS                                */
-/* ───────────────────────────────────── */
-
-function useTypewriter(words: string[], typeSpeed = 65, deleteSpeed = 40, pauseMs = 2200) {
-  const [text, setText] = useState("")
-  const [wordIdx, setWordIdx] = useState(0)
-  const [isDeleting, setIsDeleting] = useState(false)
-
-  useEffect(() => {
-    const current = words[wordIdx] || ""
-    let timeout: ReturnType<typeof setTimeout>
-
-    if (!isDeleting) {
-      if (text.length < current.length) {
-        timeout = setTimeout(() => setText(current.slice(0, text.length + 1)), typeSpeed)
-      } else {
-        timeout = setTimeout(() => setIsDeleting(true), pauseMs)
-      }
-    } else {
-      if (text.length > 0) {
-        timeout = setTimeout(() => setText(text.slice(0, -1)), deleteSpeed)
-      } else {
-        setIsDeleting(false)
-        setWordIdx((prev) => (prev + 1) % words.length)
-      }
-    }
-    return () => clearTimeout(timeout)
-  }, [text, wordIdx, isDeleting, words, typeSpeed, deleteSpeed, pauseMs])
-
-  return text
-}
+import { motion } from "motion/react"
 
 function useScrollReveal() {
   useEffect(() => {
@@ -46,10 +14,17 @@ function useScrollReveal() {
           if (entry.isIntersecting) entry.target.classList.add("visible")
         })
       },
-      { threshold: 0.1, rootMargin: "0px 0px -60px 0px" }
+      { threshold: 0.02, rootMargin: "0px 0px -10px 0px" }
     )
 
-    document.querySelectorAll(".reveal, .reveal-left, .reveal-right, .reveal-scale").forEach((el) => observer.observe(el))
+    document.querySelectorAll(".reveal").forEach((el) => {
+      const rect = el.getBoundingClientRect()
+      if (rect.top <= window.innerHeight + 200 && rect.bottom >= -200) {
+        el.classList.add("visible")
+      } else {
+        observer.observe(el)
+      }
+    })
 
     document.querySelectorAll("[data-stagger]").forEach((container) => {
       const children = container.children
@@ -57,33 +32,25 @@ function useScrollReveal() {
         ([entry]) => {
           if (entry.isIntersecting) {
             Array.from(children).forEach((child, i) => {
-              setTimeout(() => (child as HTMLElement).classList.add("visible"), i * 100)
+              setTimeout(() => (child as HTMLElement).classList.add("visible"), i * 80)
             })
             staggerObserver.unobserve(container)
           }
         },
-        { threshold: 0.1 }
+        { threshold: 0.02, rootMargin: "0px 0px -10px 0px" }
       )
-      staggerObserver.observe(container)
+      const containerRect = container.getBoundingClientRect()
+      if (containerRect.top <= window.innerHeight + 200 && containerRect.bottom >= -200) {
+        Array.from(children).forEach((child, i) => {
+          setTimeout(() => (child as HTMLElement).classList.add("visible"), i * 80)
+        })
+      } else {
+        staggerObserver.observe(container)
+      }
     })
 
     return () => observer.disconnect()
   }, [])
-}
-
-/* ───────────────────────────────────── */
-/*  SUB-COMPONENTS                        */
-/* ───────────────────────────────────── */
-
-function BackgroundAtmosphere() {
-  return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
-      <div className="aurora-drift absolute -top-32 -right-32 w-[600px] h-[600px] rounded-full bg-[#c4a079]" style={{ filter: "blur(100px)", opacity: 0.025 }} />
-      <div className="aurora-drift absolute -bottom-48 -left-32 w-[500px] h-[500px] rounded-full bg-[#1a7a7a]" style={{ filter: "blur(90px)", opacity: 0.025, animationDelay: "4s" }} />
-      <div className="fixed top-1/3 left-1/2 w-2 h-2 rounded-full bg-[#c4a079]" style={{ filter: "blur(2px)", opacity: 0.15 }} />
-      <div className="fixed bottom-1/4 left-1/4 w-1.5 h-1.5 rounded-full bg-[#1a7a7a]" style={{ filter: "blur(2px)", opacity: 0.12 }} />
-    </div>
-  )
 }
 
 function StatCounter({ target, suffix = "", decimals = 0 }: { target: number; suffix?: string; decimals?: number }) {
@@ -99,22 +66,22 @@ function StatCounter({ target, suffix = "", decimals = 0 }: { target: number; su
       ([entry]) => {
         if (entry.isIntersecting && !counted.current) {
           counted.current = true
-          const duration = 2200
-          const steps = 35
-          const increment = target / steps
-          let current = 0
+          const duration = 2400
+          const steps = 42
+          const inc = target / steps
+          let c = 0
           const interval = setInterval(() => {
-            current += increment
-            if (current >= target) {
+            c += inc
+            if (c >= target) {
               setCount(target)
               clearInterval(interval)
             } else {
-              setCount(Math.floor(current * 10 ** decimals) / 10 ** decimals)
+              setCount(Math.floor(c * 10 ** decimals) / 10 ** decimals)
             }
           }, duration / steps)
         }
       },
-      { threshold: 0.3 }
+      { threshold: 0.25 }
     )
 
     observer.observe(el)
@@ -122,157 +89,48 @@ function StatCounter({ target, suffix = "", decimals = 0 }: { target: number; su
   }, [target, decimals])
 
   return (
-    <span ref={ref} className="tabular-nums">
+    <span ref={ref} className="tabular-nums" style={{ fontFamily: "var(--font-display)" }}>
       {count.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}
       {suffix}
     </span>
   )
 }
 
-function DigitalSelfVisualizer() {
-  return (
-    <div className="relative w-[320px] h-[320px] mx-auto flex items-center justify-center">
-      {/* Ghost ring glow */}
-      <div className="absolute inset-0 rounded-full" style={{ boxShadow: "0 0 80px rgba(26, 122, 122, 0.06), 0 0 160px rgba(196, 160, 121, 0.04)" }} />
-
-      {/* Outer ring */}
-      <div className="orbit-slow absolute inset-0">
-        <div className="w-full h-full rounded-full border border-[rgba(196,160,121,0.10)]" />
-      </div>
-
-      {/* Middle ring */}
-      <div className="orbit-reverse absolute" style={{ inset: "18px" }}>
-        <div className="w-full h-full rounded-full border border-[rgba(255,255,255,0.04)]" />
-      </div>
-
-      {/* Inner ring */}
-      <div className="orbit-slow absolute" style={{ inset: "36px", animationDuration: "35s" }}>
-        <div className="w-full h-full rounded-full border border-[rgba(196,160,121,0.06)]" />
-      </div>
-
-      {/* Orbiting avatars */}
-      <div className="orbit-slow absolute inset-0" style={{ animationDuration: "25s" }}>
-        {[
-          { label: "K", bg: "linear-gradient(135deg, #1a7a7a, #2a9d9d)", angle: 0, distance: 135 },
-          { label: "C", bg: "linear-gradient(135deg, #c4a079, #dcc5a8)", angle: 120, distance: 135 },
-          { label: "O", bg: "linear-gradient(135deg, #c45a3a, #d87a5a)", angle: 240, distance: 135 },
-        ].map((item) => {
-          const rad = (item.angle * Math.PI) / 180
-          const x = 160 + item.distance * Math.cos(rad) - 16
-          const y = 160 + item.distance * Math.sin(rad) - 16
-          return (
-            <div
-              key={item.label}
-              className="orbit-reverse"
-              style={{
-                position: "absolute",
-                left: x,
-                top: y,
-                width: 32,
-                height: 32,
-                borderRadius: "9999px",
-                background: item.bg,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 11,
-                fontWeight: 600,
-                color: "#ece4d9",
-                animationDuration: "25s",
-                boxShadow: "0 0 16px rgba(196, 160, 121, 0.15)",
-              }}
-            >
-              {item.label}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Orbiting particles */}
-      {Array.from({ length: 10 }).map((_, i) => {
-        const angle = (i * 36 * Math.PI) / 180
-        const dist = 60 + (i % 4) * 22
-        const x = 160 + dist * Math.cos(angle) - 2
-        const y = 160 + dist * Math.sin(angle) - 2
-        return (
-          <div
-            key={i}
-            className="orbit-slow"
-            style={{
-              position: "absolute",
-              left: x,
-              top: y,
-              width: 3,
-              height: 3,
-              borderRadius: "9999px",
-              background: i % 3 === 0 ? "#c4a079" : i % 3 === 1 ? "#1a7a7a" : "#c45a3a",
-              opacity: 0.5,
-              animationDuration: `${18 + (i % 5) * 3}s`,
-              animationDelay: `${i * 0.4}s`,
-            }}
-          />
-        )
-      })}
-
-      {/* Center core */}
-      <div className="ds-orbit w-24 h-24 flex items-center justify-center">
-        <div className="w-[calc(100%-4px)] h-[calc(100%-4px)] rounded-full bg-[#0c0b0a] flex items-center justify-center">
-          <span className="text-2xl font-bold text-[#ece4d9]" style={{ fontFamily: "var(--font-display)" }}>N</span>
-        </div>
-      </div>
-    </div>
-  )
+function AmbientBackground() {
+  return <div className="ambient-bg" aria-hidden="true" />
 }
 
-/* ───────────────────────────────────── */
-/*  DATA                                  */
-/* ───────────────────────────────────── */
-
 const agents = [
-  { name: "Goal Analysis", role: "Detects goals, intentions & motivations", emoji: "🎯", activity: 92 },
-  { name: "Skill Gap", role: "Identifies what you need to learn", emoji: "🔍", activity: 88 },
-  { name: "Learning Path", role: "Creates personalized roadmaps", emoji: "🗺️", activity: 85 },
-  { name: "Opportunity Matching", role: "Finds events, hackathons & more", emoji: "⚡", activity: 79 },
-  { name: "Profile Evolution", role: "Tracks growth & updates Digital Self", emoji: "📈", activity: 91 },
-  { name: "Future Simulation", role: "Simulates scenarios & outcomes", emoji: "🔮", activity: 76 },
+  { name: "Goal Analysis", role: "Detects goals, intentions & motivations with deep reasoning", activity: 92, color: "var(--accent-primary)", icon: "◈" },
+  { name: "Skill Gap", role: "Identifies what you need to learn next to close gaps", activity: 88, color: "var(--accent-warm)", icon: "◇" },
+  { name: "Learning Path", role: "Creates personalized, adaptive learning roadmaps", activity: 85, color: "var(--accent-secondary)", icon: "◉" },
+  { name: "Opportunity Matching", role: "Finds events, hackathons & scholarships matched to you", activity: 79, color: "var(--accent-rose)", icon: "◎" },
+  { name: "Profile Evolution", role: "Tracks growth and continuously updates Digital Self", activity: 91, color: "var(--accent-primary)", icon: "⬡" },
+  { name: "Future Simulation", role: "Simulates scenarios & outcomes to guide decisions", activity: 76, color: "var(--accent-warm)", icon: "◈" },
 ]
 
 const features = [
-  { title: "Living Human Model", desc: "A continuously evolving Digital Self that grows with every action you take.", accent: "#1a7a7a" },
-  { title: "Multi-Agent Reasoning", desc: "Six specialized agents working in orchestration to analyze and guide you.", accent: "#c4a079" },
-  { title: "Personalized Roadmaps", desc: "Dynamic learning paths that adapt to your goals and your progress.", accent: "#c45a3a" },
-  { title: "Opportunity Engine", desc: "Smart matching with events, hackathons, scholarships, and more.", accent: "#2a9d9d" },
-  { title: "Future Simulation", desc: "Compare different paths to see success probabilities before you commit.", accent: "#dcc5a8" },
-  { title: "Persistent Memory", desc: "Nexus remembers everything. Each conversation deepens its understanding.", accent: "#d87a5a" },
+  { title: "Living Human Model", desc: "A continuously evolving Digital Self that grows with every action you take.", icon: "◈", color: "var(--accent-primary)", wide: true },
+  { title: "Multi-Agent Reasoning", desc: "Six specialized agents working in orchestration to analyze and guide you.", icon: "◇", color: "var(--accent-warm)" },
+  { title: "Personalized Roadmaps", desc: "Dynamic learning paths that adapt to your goals and your progress.", icon: "◉", color: "var(--accent-secondary)" },
+  { title: "Opportunity Engine", desc: "Smart matching with events, hackathons, scholarships, and more.", icon: "◎", color: "var(--accent-rose)", wide: true },
+  { title: "Future Simulation", desc: "Compare different paths to see success probabilities before you commit.", icon: "⬡", color: "var(--accent-warm)" },
+  { title: "Persistent Memory", desc: "Nexus remembers everything. Each conversation deepens its understanding.", icon: "◈", color: "var(--accent-primary)" },
 ]
 
-const howItWorks = [
-  { num: "01", title: "Share Your Intention", desc: "Tell Nexus what you want to achieve. The system listens and builds your initial Digital Self model." },
-  { num: "02", title: "Multi-Agent Analysis", desc: "Six reasoning agents analyze your goals, skills, gaps, and opportunities in parallel." },
-  { num: "03", title: "Receive Your Roadmap", desc: "A personalized learning path with milestones, resources, and timelines appears." },
-  { num: "04", title: "Grow, Then Repeat", desc: "Every action updates your Digital Self. The system adapts as you evolve." },
+const steps = [
+  { num: "01", title: "Share Your Intention", desc: "Tell Nexus what you want to achieve. It listens deeply and begins constructing your initial Digital Self model." },
+  { num: "02", title: "Multi-Agent Analysis", desc: "Six reasoning agents analyze your goals, skills, gaps, and opportunities simultaneously." },
+  { num: "03", title: "Receive Your Roadmap", desc: "A personalized learning path with milestones, resources, and timelines appears — tailored to you." },
+  { num: "04", title: "Grow, Then Repeat", desc: "Every action updates your Digital Self. The system evolves as you evolve." },
 ]
-
-/* ───────────────────────────────────── */
-/*  MAIN PAGE                             */
-/* ───────────────────────────────────── */
 
 export default function LandingPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const heroRef = useRef<HTMLDivElement>(null)
-  const [navScrolled, setNavScrolled] = useState(false)
-  const [parallaxOffset, setParallaxOffset] = useState({ x: 0, y: 0 })
-
-  const typewriterText = useTypewriter([
-    "your ambitions",
-    "your potential",
-    "your future",
-    "what matters",
-    "your growth",
-    "beyond limits",
-  ])
+  const [parallax, setParallax] = useState({ x: 0, y: 0 })
 
   useScrollReveal()
 
@@ -281,123 +139,270 @@ export default function LandingPage() {
     if (session) router.push("/dashboard")
   }, [session, router])
 
-  useEffect(() => {
-    const onScroll = () => setNavScrolled(window.scrollY > 40)
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
-
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!heroRef.current) return
     const rect = heroRef.current.getBoundingClientRect()
     const x = (e.clientX - rect.left) / rect.width - 0.5
     const y = (e.clientY - rect.top) / rect.height - 0.5
-    setParallaxOffset({ x: x * 15, y: y * 15 })
+    setParallax({ x: x * 14, y: y * 14 })
+  }, [])
+
+  const handleCardMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
+    e.currentTarget.style.setProperty("--mouse-x", `${x}%`)
+    e.currentTarget.style.setProperty("--mouse-y", `${y}%`)
   }, [])
 
   if (!mounted) return null
 
   return (
-    <div id="main-content" className="min-h-screen overflow-x-hidden">
-      <BackgroundAtmosphere />
+    <div id="main-content" className="min-h-[100dvh] overflow-x-hidden">
+      <AmbientBackground />
 
-      {/* ── Nav Island ── */}
-      <nav className={`nav-island ${navScrolled ? "scrolled" : ""}`}>
-        <Link href="/" className="flex items-center gap-2 no-underline shrink-0">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[#0c0b0a] font-bold text-xs" style={{ background: "linear-gradient(135deg, #c4a079, #dcc5a8)" }}>N</div>
-          <span className="font-medium text-sm text-[#ece4d9] tracking-tight">Nexus</span>
-        </Link>
-        <div className="flex items-center gap-2 ml-auto">
-          {session ? (
-            <Link href="/dashboard" className="btn btn-primary text-xs" style={{ padding: "0.5rem 1rem" }}>
-              Dashboard
-              <span className="btn-arrow">→</span>
-            </Link>
-          ) : (
-            <>
-              <Link href="/auth/login" className="btn btn-ghost text-xs" style={{ padding: "0.375rem 0.875rem" }}>Sign In</Link>
-              <Link href="/auth/register" className="btn btn-primary text-xs" style={{ padding: "0.375rem 0.875rem" }}>
-                Get Started
-                <span className="btn-arrow">→</span>
+      {/* ── NAV ── */}
+      <nav className="fixed top-5 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl">
+        <div className="premium-card premium-card-glass flex items-center justify-between !py-2.5 !px-2 !rounded-full">
+          <Link href="/" className="flex items-center gap-2.5 pl-3">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
+              style={{
+                background: "linear-gradient(135deg, var(--accent-warm), #d97706)",
+                color: "var(--bg-abyss)",
+              }}
+            >
+              N
+            </div>
+            <span className="font-semibold text-sm tracking-tight" style={{ color: "var(--text-primary)" }}>
+              Nexus
+            </span>
+          </Link>
+          <div className="flex items-center gap-1.5 pr-1.5">
+            {session ? (
+              <Link href="/dashboard" className="btn btn-primary !py-2 !px-4 !text-xs">
+                Dashboard
+                <span className="btn-icon">→</span>
               </Link>
-            </>
-          )}
+            ) : (
+              <>
+                <Link href="/auth/login" className="btn btn-ghost !py-2 !px-3.5 !text-xs">
+                  Sign In
+                </Link>
+                <Link href="/auth/register" className="btn btn-primary !py-2 !px-4 !text-xs">
+                  Get Started
+                  <span className="btn-icon">→</span>
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </nav>
 
-      {/* ── Hero (Asymmetric Editorial Split) ── */}
+      {/* ── HERO ── */}
       <section
         ref={heroRef}
         onMouseMove={handleMouseMove}
-        className="relative min-h-[100dvh] flex items-center pt-28 pb-16 px-6 overflow-hidden"
+        className="relative min-h-[100dvh] flex items-center pt-24 pb-16 px-6 overflow-hidden"
       >
-        {/* Parallax atmosphere */}
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
           <div
-            className="absolute top-1/4 left-1/4 w-72 h-72 rounded-full bg-[#c4a079]"
-            style={{ filter: "blur(80px)", opacity: 0.025, transform: `translate(${parallaxOffset.x * 0.4}px, ${parallaxOffset.y * 0.4}px)`, transition: "transform 0.2s var(--ease-out-expo)" }}
+            className="absolute top-1/4 left-1/4 w-80 h-80 rounded-full"
+            style={{
+              background: "var(--accent-warm)",
+              filter: "blur(100px)",
+              opacity: 0.04,
+              transform: `translate(${parallax.x * 0.5}px, ${parallax.y * 0.5}px)`,
+              transition: "transform 0.4s var(--ease-out)",
+            }}
           />
           <div
-            className="absolute bottom-1/4 right-1/4 w-60 h-60 rounded-full bg-[#1a7a7a]"
-            style={{ filter: "blur(70px)", opacity: 0.03, transform: `translate(${parallaxOffset.x * -0.3}px, ${parallaxOffset.y * -0.3}px)`, transition: "transform 0.25s var(--ease-out-expo)" }}
+            className="absolute bottom-1/4 right-1/4 w-72 h-72 rounded-full"
+            style={{
+              background: "var(--accent-primary)",
+              filter: "blur(90px)",
+              opacity: 0.04,
+              transform: `translate(${parallax.x * -0.4}px, ${parallax.y * -0.4}px)`,
+              transition: "transform 0.45s var(--ease-out)",
+            }}
           />
         </div>
 
-        {/* Content grid — asymmetric 3/5 + 2/5 */}
         <div className="container relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-center">
-            {/* Left — Editorial text block */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
             <div className="lg:col-span-7">
-              <div className="reveal">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs text-[#a09888] mb-8" style={{ border: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,255,255,0.02)" }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#1a7a7a]" />
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                className="mb-8"
+              >
+                <div className="pill">
+                  <span className="pill-dot pill-dot--cosmos" />
                   Human Evolution OS · v1.0
                 </div>
-              </div>
+              </motion.div>
 
-              <h1 className="reveal text-5xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.92] mb-6 text-balance" style={{ fontFamily: "var(--font-display)", fontWeight: 600, transitionDelay: "100ms" }}>
-                <span className="text-[#ece4d9]">Don&apos;t just</span>
+              <motion.h1
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.9, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
+                className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.9] mb-8"
+              >
+                <span style={{ color: "var(--text-primary)" }}>Don&apos;t just</span>
                 <br />
-                <span className="italic text-[#a09888]" style={{ fontWeight: 400 }}>ask for answers.</span>
+                <span className="italic" style={{ color: "var(--text-secondary)", fontWeight: 400 }}>ask for answers.</span>
                 <br />
-                <span className="text-[#ece4d9]">Build a future</span>
+                <span style={{ color: "var(--text-primary)" }}>Build a future</span>
                 <br />
-                <span className="text-[#ece4d9]">with AI that</span>
+                <span style={{ color: "var(--text-primary)" }}>with AI that</span>
                 <br />
-                <span className="inline-flex items-baseline" style={{ minHeight: "1.2em" }}>
-                  <span className="text-[#c4a079]">{typewriterText}</span>
-                  <span className="ml-1 font-light text-[#c4a079]" style={{ animation: "blink 0.8s step-end infinite" }}>|</span>
-                </span>
-              </h1>
+                <span style={{ color: "var(--accent-primary)" }}>grows with you.</span>
+              </motion.h1>
 
-              <p className="reveal text-base md:text-lg text-[#a09888] max-w-lg leading-relaxed mb-10" style={{ transitionDelay: "200ms", lineHeight: 1.7 }}>
-                Nexus AI is not a chatbot. It&apos;s a network of reasoning agents that continuously learn who you are, what you want, and how to help you grow beyond your limits.
-              </p>
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="text-base md:text-lg max-w-lg leading-relaxed mb-10"
+                style={{ color: "var(--text-secondary)", fontWeight: 300, lineHeight: 1.75 }}
+              >
+                Nexus AI is not a chatbot. It&apos;s a network of reasoning agents that continuously learn who you are,
+                what you want, and how to help you grow beyond your limits.
+              </motion.p>
 
-              <div className="reveal flex flex-wrap items-center gap-4" style={{ transitionDelay: "300ms" }}>
-                <Link href="/auth/register" className="btn btn-gold text-sm" style={{ padding: "0.875rem 2rem" }}>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                className="flex flex-wrap items-center gap-4"
+              >
+                <Link href="/auth/register" className="btn btn-primary">
                   Start Your Evolution
-                  <span className="btn-arrow" style={{ background: "rgba(12, 11, 10, 0.2)" }}>→</span>
+                  <span className="btn-icon">→</span>
                 </Link>
-                <a href="#agents" className="btn btn-ghost text-sm" style={{ padding: "0.875rem 1.75rem" }}>Meet the Agents</a>
-              </div>
+                <a href="#agents" className="btn btn-secondary">
+                  Meet the Agents
+                </a>
+              </motion.div>
 
-              {/* Scroll teaser */}
-              <div className="reveal flex items-center gap-3 mt-16" style={{ transitionDelay: "500ms" }}>
-                <div className="h-8 w-px" style={{ background: "linear-gradient(180deg, var(--accent-teal), transparent)" }} />
-                <span className="text-[10px] text-[#706858] tracking-[0.15em] uppercase">Scroll to explore</span>
-              </div>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 1, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                className="flex items-center gap-3 mt-20"
+              >
+                <div className="h-10 w-px" style={{ background: "linear-gradient(180deg, var(--accent-primary), transparent)" }} />
+                <span className="text-[10px] tracking-[0.18em] uppercase font-semibold" style={{ color: "var(--text-muted)" }}>
+                  Scroll to explore
+                </span>
+              </motion.div>
             </div>
 
-            {/* Right — Visual */}
-            <div className="lg:col-span-5 reveal-scale flex items-center justify-center" style={{ transitionDelay: "200ms" }}>
-              <DigitalSelfVisualizer />
-            </div>
+            {/* Right — Digital Self Visual */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1.2, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="lg:col-span-5 flex items-center justify-center"
+            >
+              <div className="relative">
+                <div
+                  className="absolute -inset-4 rounded-full"
+                  style={{
+                    background: "conic-gradient(from 0deg, var(--accent-primary), var(--accent-secondary), var(--accent-warm), var(--accent-primary))",
+                    filter: "blur(60px)",
+                    opacity: 0.2,
+                    animation: "spin 8s linear infinite",
+                  }}
+                  aria-hidden="true"
+                />
+                <div className="relative w-72 h-72 sm:w-80 sm:h-80">
+                  <div
+                    className="absolute inset-0 rounded-full border animate-spin"
+                    style={{ borderColor: "rgba(129, 140, 248, 0.15)", animationDuration: "35s" }}
+                  />
+                  <div
+                    className="absolute rounded-full border animate-spin"
+                    style={{
+                      inset: "20px",
+                      borderColor: "rgba(255,255,255,0.04)",
+                      animationDuration: "28s",
+                      animationDirection: "reverse",
+                    }}
+                  />
+                  <div
+                    className="absolute rounded-full border"
+                    style={{
+                      inset: "40px",
+                      borderColor: "rgba(251, 113, 133, 0.1)",
+                      animation: "spin 22s linear infinite reverse",
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div
+                      className="w-24 h-24 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "var(--bg-abyss)",
+                        border: "2px solid",
+                        borderImage: "linear-gradient(135deg, var(--accent-primary), var(--accent-warm)) 1",
+                        boxShadow: "0 0 60px var(--accent-primary-soft), 0 0 120px rgba(129, 140, 248, 0.08)",
+                      }}
+                    >
+                      <span className="text-4xl font-bold" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
+                        N
+                      </span>
+                    </div>
+                  </div>
+                  {[
+                    { label: "K", angle: 0, color: "var(--accent-primary)", x: 0, y: -145 },
+                    { label: "C", angle: 120, color: "var(--accent-warm)", x: 125, y: 72 },
+                    { label: "X", angle: 240, color: "var(--accent-rose)", x: -125, y: 72 },
+                  ].map((node) => (
+                    <div
+                      key={node.label}
+                      className="absolute w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold"
+                      style={{
+                        background: node.color,
+                        color: "#fff",
+                        left: `calc(50% + ${node.x}px - 18px)`,
+                        top: `calc(50% + ${node.y}px - 18px)`,
+                        boxShadow: `0 0 24px ${node.color}55`,
+                      }}
+                    >
+                      {node.label}
+                    </div>
+                  ))}
+                </div>
+                <div
+                  className="absolute -right-6 top-12 px-3 py-2 rounded-full"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                    animation: "float 5s ease-in-out infinite",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  <span className="text-xs font-semibold" style={{ color: "var(--accent-secondary)" }}>● 6 Active Agents</span>
+                </div>
+                <div
+                  className="absolute -left-8 bottom-16 px-3 py-2 rounded-full"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border-subtle)",
+                    animation: "float 6s ease-in-out infinite 1.5s",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  <span className="text-xs font-semibold" style={{ color: "var(--accent-warm)" }}>◈ 24/7 Evolution</span>
+                </div>
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* ── Stats Band ── */}
+      {/* ── STATS ── */}
       <section className="section">
         <div className="container">
           <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-10 md:gap-12">
@@ -408,42 +413,71 @@ export default function LandingPage() {
               { value: 24, suffix: "/7", label: "Active Evolution" },
             ].map((stat, i) => (
               <div key={stat.label} className="reveal text-center" style={{ transitionDelay: `${i * 100}ms` }}>
-                <div className="text-4xl md:text-5xl font-bold text-[#ece4d9] mb-1 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                <div className="text-4xl md:text-5xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>
                   <StatCounter target={stat.value} suffix={stat.suffix} />
                 </div>
-                <p className="text-sm text-[#706858] tracking-wide">{stat.label}</p>
+                <p className="text-[11px] tracking-[0.1em] uppercase font-semibold" style={{ color: "var(--text-muted)" }}>
+                  {stat.label}
+                </p>
               </div>
             ))}
           </div>
-          <div className="max-w-4xl mx-auto mt-10 divider-gradient" />
+          <div className="max-w-3xl mx-auto mt-12 divider-accent" />
         </div>
       </section>
 
-      {/* ── Agent Ecosystem (Editorial Cards) ── */}
+      {/* ── AGENTS ── */}
       <section id="agents" className="section">
         <div className="container">
           <div className="mb-20 max-w-2xl">
-            <div className="reveal inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.2em] text-[#706858] mb-6" style={{ border: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,255,255,0.02)" }}>Your Ecosystem</div>
-            <h2 className="reveal text-4xl md:text-5xl mb-4 text-[#ece4d9] leading-[1.05]" style={{ fontFamily: "var(--font-display)", fontWeight: 600, transitionDelay: "100ms" }}>
-              Your Personal<br />
-              <span className="italic font-normal" style={{ color: "#a09888" }}>Agent Ecosystem</span>
+            <div className="reveal pill mb-6">
+              <span className="pill-dot pill-dot--cosmos" />
+              Your Ecosystem
+            </div>
+            <h2
+              className="reveal text-4xl md:text-5xl lg:text-6xl mb-5 leading-[1.05]"
+              style={{ color: "var(--text-primary)", transitionDelay: "100ms" }}
+            >
+              Your Personal
+              <br />
+              <span className="italic font-normal" style={{ color: "var(--text-secondary)" }}>Agent Ecosystem</span>
             </h2>
-            <p className="reveal text-[#a09888] text-lg max-w-md leading-relaxed" style={{ transitionDelay: "200ms", fontFamily: "var(--font-body)", fontWeight: 300 }}>
+            <p
+              className="reveal text-base md:text-lg max-w-md leading-relaxed"
+              style={{ color: "var(--text-secondary)", transitionDelay: "200ms", fontWeight: 300 }}
+            >
               Six specialized reasoning agents working in orchestration to understand, analyze, and guide your personal growth.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-stagger>
             {agents.map((agent) => (
-              <div key={agent.name} className="card card-glow">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-2xl">{agent.emoji}</span>
-                  <span className="text-xs font-mono text-[#706858]">{agent.activity}%</span>
+              <div
+                key={agent.name}
+                className="premium-card"
+                onMouseMove={handleCardMouseMove}
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <span className="text-2xl">{agent.icon}</span>
+                  <span className="text-[11px] font-bold tracking-wide" style={{ color: agent.color }}>
+                    {agent.activity}%
+                  </span>
                 </div>
-                <h3 className="text-[#ece4d9] font-medium text-base mb-1" style={{ fontFamily: "var(--font-body)" }}>{agent.name}</h3>
-                <p className="text-[#706858] text-sm leading-relaxed mb-5">{agent.role}</p>
+                <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>
+                  {agent.name}
+                </h3>
+                <p className="text-sm leading-relaxed mb-5" style={{ color: "var(--text-muted)", fontWeight: 300 }}>
+                  {agent.role}
+                </p>
                 <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${agent.activity}%` }} />
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${agent.activity}%`,
+                      background: agent.color,
+                      color: agent.color,
+                    }}
+                  />
                 </div>
               </div>
             ))}
@@ -451,87 +485,149 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Digital Self — Immersive ── */}
+      {/* ── DIGITAL SELF ── */}
       <section className="section relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 right-0 w-[400px] h-[400px] rounded-full bg-[#c4a079]" style={{ filter: "blur(100px)", opacity: 0.02 }} />
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          <div
+            className="absolute top-1/2 right-0 w-[450px] h-[450px] rounded-full"
+            style={{ background: "var(--accent-rose)", filter: "blur(120px)", opacity: 0.025 }}
+          />
         </div>
-        <div className="container">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+        <div className="container relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-20 items-center">
             <div>
-              <div className="reveal inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.2em] text-[#706858] mb-6" style={{ border: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,255,255,0.02)" }}>Core Innovation</div>
-              <h2 className="reveal text-4xl md:text-5xl mb-6 leading-[1.05] text-[#ece4d9]" style={{ fontFamily: "var(--font-display)", fontWeight: 600, transitionDelay: "100ms" }}>
-                Your Digital Self<br />
-                <span className="italic font-normal" style={{ color: "#a09888" }}>Evolves With You</span>
+              <div className="reveal pill mb-6">
+                <span className="pill-dot pill-dot--emerald" />
+                Core Innovation
+              </div>
+              <h2
+                className="reveal text-4xl md:text-5xl lg:text-6xl mb-8 leading-[1.05]"
+                style={{ color: "var(--text-primary)", transitionDelay: "100ms" }}
+              >
+                Your Digital Self
+                <br />
+                <span className="italic font-normal" style={{ color: "var(--text-secondary)" }}>Evolves With You</span>
               </h2>
-              <p className="reveal text-[#a09888] text-lg max-w-md leading-relaxed mb-12" style={{ transitionDelay: "200ms", fontWeight: 300 }}>
-                Every goal you set, every skill you learn, every opportunity you take — your Digital Self updates in real time. Three avatars represent different dimensions of your growth.
+              <p
+                className="reveal text-base md:text-lg max-w-md leading-relaxed mb-14"
+                style={{ color: "var(--text-secondary)", transitionDelay: "200ms", fontWeight: 300, lineHeight: 1.75 }}
+              >
+                Every goal you set, every skill you learn, every opportunity you take — your Digital Self updates in real time.
+                Three avatars represent different dimensions of your growth.
               </p>
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { label: "Knowledge Self", desc: "Learning & Skills", bg: "linear-gradient(135deg, #1a7a7a, #2a9d9d)" },
-                  { label: "Career Self", desc: "Projects & Growth", bg: "linear-gradient(135deg, #c4a079, #dcc5a8)" },
-                  { label: "Community Self", desc: "Networking & Events", bg: "linear-gradient(135deg, #c45a3a, #d87a5a)" },
+                  { label: "Knowledge Self", desc: "Learning & Skills", color: "var(--accent-primary)" },
+                  { label: "Career Self", desc: "Projects & Growth", color: "var(--accent-warm)" },
+                  { label: "Community Self", desc: "Networking & Events", color: "var(--accent-rose)" },
                 ].map((item, i) => (
-                  <div key={item.label} className="card reveal" style={{ transitionDelay: `${i * 100 + 300}ms`, padding: "1.25rem" }}>
+                  <div key={item.label} className="premium-card reveal" style={{ transitionDelay: `${i * 120 + 300}ms`, padding: "1.5rem 1rem" }}>
                     <div className="text-center">
                       <div
-                        className="w-11 h-11 rounded-full mx-auto mb-3 flex items-center justify-center"
-                        style={{ background: item.bg }}
+                        className="w-11 h-11 rounded-xl mx-auto mb-3 flex items-center justify-center text-sm font-bold"
+                        style={{ background: item.color, color: "#fff", boxShadow: `0 0 20px ${item.color}33` }}
                       >
-                        <span className="text-sm font-semibold text-[#ece4d9]">{item.label[0]}</span>
+                        {item.label[0]}
                       </div>
-                      <h4 className="text-sm font-medium text-[#ece4d9] mb-0.5">{item.label}</h4>
-                      <p className="text-[10px] text-[#706858] tracking-wide uppercase">{item.desc}</p>
+                      <h4 className="text-sm font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>{item.label}</h4>
+                      <p className="text-[10px] tracking-wide uppercase font-medium" style={{ color: "var(--text-muted)" }}>
+                        {item.desc}
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="reveal-scale flex items-center justify-center" style={{ transitionDelay: "400ms" }}>
-              <DigitalSelfVisualizer />
+
+            <div className="reveal flex items-center justify-center" style={{ transitionDelay: "300ms" }}>
+              <div className="relative w-72 h-72 sm:w-80 sm:h-80">
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: "conic-gradient(from 0deg, var(--accent-primary), var(--accent-warm), var(--accent-rose), var(--accent-primary))",
+                    filter: "blur(40px)",
+                    opacity: 0.25,
+                    animation: "spin 10s linear infinite",
+                  }}
+                  aria-hidden="true"
+                />
+                <div className="absolute inset-4 rounded-full" style={{ background: "var(--bg-abyss)" }} />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-5xl font-bold" style={{ fontFamily: "var(--font-display)", color: "var(--text-primary)" }}>
+                    N
+                  </span>
+                </div>
+                {[
+                  { label: "K", color: "var(--accent-primary)", x: 0, y: -130 },
+                  { label: "C", color: "var(--accent-warm)", x: 112, y: 65 },
+                  { label: "X", color: "var(--accent-rose)", x: -112, y: 65 },
+                ].map((node) => (
+                  <div
+                    key={node.label}
+                    className="absolute w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                    style={{
+                      background: node.color,
+                      color: "#fff",
+                      left: `calc(50% + ${node.x}px - 16px)`,
+                      top: `calc(50% + ${node.y}px - 16px)`,
+                      boxShadow: `0 0 16px ${node.color}44`,
+                    }}
+                  >
+                    {node.label}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Features (Magazine-Style Asymmetric Grid) ── */}
+      {/* ── FEATURES — ASYMMETRIC BENTO ── */}
       <section className="section">
         <div className="container">
           <div className="mb-20 max-w-2xl">
-            <div className="reveal inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.2em] text-[#706858] mb-6" style={{ border: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,255,255,0.02)" }}>Capabilities</div>
-            <h2 className="reveal text-4xl md:text-5xl mb-4 text-[#ece4d9] leading-[1.05]" style={{ fontFamily: "var(--font-display)", fontWeight: 600, transitionDelay: "100ms" }}>
-              Everything You Need<br />
-              <span className="italic font-normal" style={{ color: "#a09888" }}>to Evolve</span>
+            <div className="reveal pill mb-6">
+              <span className="pill-dot pill-dot--aurum" />
+              Capabilities
+            </div>
+            <h2
+              className="reveal text-4xl md:text-5xl lg:text-6xl mb-5 leading-[1.05]"
+              style={{ color: "var(--text-primary)", transitionDelay: "100ms" }}
+            >
+              Everything You Need
+              <br />
+              <span className="italic font-normal" style={{ color: "var(--text-secondary)" }}>to Evolve</span>
             </h2>
-            <p className="reveal text-[#a09888] text-lg max-w-md leading-relaxed" style={{ transitionDelay: "200ms", fontWeight: 300 }}>
+            <p
+              className="reveal text-base md:text-lg max-w-md leading-relaxed"
+              style={{ color: "var(--text-secondary)", transitionDelay: "200ms", fontWeight: 300 }}
+            >
               A complete platform for personal and professional growth, designed around your unique trajectory.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-stagger>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4" data-stagger>
             {features.map((f, i) => {
               const isWide = i === 0 || i === 3
+              const cls = isWide ? "md:col-span-8" : "md:col-span-4"
               return (
-                <div
-                  key={f.title}
-                  className={`card card-glow ${isWide ? "md:col-span-2" : ""}`}
-                  style={{ position: "relative" }}
-                >
-                  <div
-                    className="absolute top-0 left-0 w-1 h-full rounded-l-[var(--radius-md)]"
-                    style={{ background: `linear-gradient(180deg, ${f.accent}, transparent)` }}
-                  />
-                  <div className="flex items-start gap-4">
+                <div key={f.title} className={`${cls} premium-card`} onMouseMove={handleCardMouseMove}>
+                  <div className="flex items-start gap-5">
                     <div
-                      className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-lg float-medium"
-                      style={{ background: `${f.accent}15` }}
+                      className="w-12 h-12 rounded-xl shrink-0 flex items-center justify-center text-lg"
+                      style={{
+                        background: `${f.color}18`,
+                        color: f.color,
+                        boxShadow: `0 0 24px ${f.color}15`,
+                      }}
                     >
-                      {["🧬", "🧠", "🗺️", "⚡", "🔮", "💭"][i]}
+                      {f.icon}
                     </div>
-                    <div>
-                      <h3 className="text-[#ece4d9] font-medium text-base mb-1">{f.title}</h3>
-                      <p className="text-[#706858] text-sm leading-relaxed">{f.desc}</p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{f.title}</h3>
+                      <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)", fontWeight: 300 }}>
+                        {f.desc}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -541,36 +637,69 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── How It Works (Timeline) ── */}
+      {/* ── HOW IT WORKS ── */}
       <section className="section">
         <div className="container">
           <div className="max-w-4xl mx-auto">
             <div className="mb-20">
-              <div className="reveal inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.2em] text-[#706858] mb-6" style={{ border: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,255,255,0.02)" }}>How It Works</div>
-              <h2 className="reveal text-4xl md:text-5xl text-[#ece4d9] leading-[1.05]" style={{ fontFamily: "var(--font-display)", fontWeight: 600, transitionDelay: "100ms" }}>
-                Your Journey in<br />
-                <span className="italic font-normal" style={{ color: "#a09888" }}>Four Movements</span>
+              <div className="reveal pill mb-6">
+                <span className="pill-dot pill-dot--solar" />
+                How It Works
+              </div>
+              <h2
+                className="reveal text-4xl md:text-5xl lg:text-6xl leading-[1.05]"
+                style={{ color: "var(--text-primary)", transitionDelay: "100ms" }}
+              >
+                Your Journey in
+                <br />
+                <span className="italic font-normal" style={{ color: "var(--text-secondary)" }}>Four Movements</span>
               </h2>
             </div>
 
             <div className="relative">
-              {/* Timeline track */}
-              <div className="absolute left-[19px] top-2 bottom-2 w-px timeline-track" style={{ width: "1px", opacity: 0.5 }} />
+              <div
+                className="absolute left-[19px] top-2 bottom-2 hidden md:block"
+                style={{
+                  width: "1px",
+                  background: "linear-gradient(180deg, var(--accent-primary), var(--accent-warm), var(--accent-rose))",
+                  opacity: 0.4,
+                }}
+              />
 
-              <div className="space-y-16">
-                {howItWorks.map((step, i) => (
-                  <div key={step.num} className="relative pl-14 reveal" style={{ transitionDelay: `${i * 150}ms` }}>
-                    {/* Number dot */}
+              <div className="space-y-14 md:space-y-16">
+                {steps.map((step, i) => (
+                  <div key={step.num} className="relative pl-0 md:pl-16 reveal" style={{ transitionDelay: `${i * 140}ms` }}>
                     <div
-                      className="absolute left-0 top-1 w-[39px] h-[39px] rounded-full flex items-center justify-center text-xs font-semibold text-[#0c0b0a]"
-                      style={{ background: i % 2 === 0 ? "#c4a079" : "#1a7a7a" }}
+                      className="hidden md:flex absolute left-0 top-1 w-[39px] h-[39px] rounded-full items-center justify-center text-xs font-bold"
+                      style={{
+                        background: i % 2 === 0 ? "var(--accent-primary)" : "var(--accent-warm)",
+                        color: "#fff",
+                        boxShadow: i % 2 === 0 ? "0 0 20px var(--accent-primary-soft)" : "0 0 20px var(--accent-warm-soft)",
+                      }}
                     >
                       {step.num}
                     </div>
 
-                    <div className="card" style={{ padding: "1.5rem 2rem" }}>
-                      <h3 className="text-lg text-[#ece4d9] mb-1.5" style={{ fontFamily: "var(--font-display)", fontWeight: 600 }}>{step.title}</h3>
-                      <p className="text-sm text-[#706858] leading-relaxed">{step.desc}</p>
+                    <div className="premium-card">
+                      <div className="flex items-start gap-4">
+                        <span
+                          className="md:hidden text-2xl font-bold shrink-0"
+                          style={{
+                            fontFamily: "var(--font-display)",
+                            color: i % 2 === 0 ? "var(--accent-primary)" : "var(--accent-warm)",
+                          }}
+                        >
+                          {step.num}
+                        </span>
+                        <div>
+                          <h3 className="text-lg md:text-xl mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                            {step.title}
+                          </h3>
+                          <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)", fontWeight: 300 }}>
+                            {step.desc}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -583,22 +712,37 @@ export default function LandingPage() {
       {/* ── CTA ── */}
       <section className="section">
         <div className="container">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="card" style={{ padding: "3.5rem 2.5rem", position: "relative", overflow: "hidden", border: "1px solid rgba(196, 160, 121, 0.12)" }}>
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full bg-[#c4a079]" style={{ filter: "blur(90px)", opacity: 0.025, pointerEvents: "none" }} />
-              <div className="relative z-10">
-                <div className="reveal inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.2em] text-[#706858] mb-6" style={{ border: "1px solid rgba(255,255,255,0.04)", background: "rgba(255,255,255,0.02)" }}>Begin</div>
-                <h2 className="reveal text-4xl md:text-5xl text-[#ece4d9] mb-4 leading-[1.05]" style={{ fontFamily: "var(--font-display)", fontWeight: 600, transitionDelay: "100ms" }}>
-                  Ready to Start<br />
-                  <span className="italic font-normal" style={{ color: "#a09888" }}>Your Evolution</span>?
+          <div className="max-w-3xl mx-auto">
+            <div className="premium-card premium-card-elevated relative overflow-hidden" style={{ padding: "clamp(2rem, 5vw, 3.5rem)" }}>
+              <div
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full pointer-events-none"
+                style={{ background: "var(--accent-primary)", filter: "blur(120px)", opacity: 0.05 }}
+                aria-hidden="true"
+              />
+              <div className="relative z-10 text-center">
+                <div className="reveal pill mb-8 inline-flex">
+                  <span className="pill-dot pill-dot--cosmos" />
+                  Begin
+                </div>
+                <h2
+                  className="reveal text-4xl md:text-5xl lg:text-6xl mb-6 leading-[1.05]"
+                  style={{ color: "var(--text-primary)", transitionDelay: "100ms" }}
+                >
+                  Ready to Start
+                  <br />
+                  <span className="italic font-normal" style={{ color: "var(--text-secondary)" }}>Your Evolution</span>
+                  ?
                 </h2>
-                <p className="reveal text-[#a09888] text-base max-w-sm mx-auto leading-relaxed mb-10" style={{ transitionDelay: "200ms", fontWeight: 300 }}>
+                <p
+                  className="reveal text-base md:text-lg max-w-md mx-auto leading-relaxed mb-10"
+                  style={{ color: "var(--text-secondary)", transitionDelay: "200ms", fontWeight: 300 }}
+                >
                   Join Nexus AI and build your future with a network of reasoning agents that learn, adapt, and grow with you.
                 </p>
                 <div className="reveal" style={{ transitionDelay: "300ms" }}>
-                  <Link href="/auth/register" className="btn btn-gold text-sm" style={{ padding: "1rem 2.5rem" }}>
+                  <Link href="/auth/register" className="btn btn-primary" style={{ padding: "1rem 2.5rem", fontSize: "1rem" }}>
                     Get Started Free
-                    <span className="btn-arrow" style={{ background: "rgba(12, 11, 10, 0.2)" }}>→</span>
+                    <span className="btn-icon">→</span>
                   </Link>
                 </div>
               </div>
@@ -607,14 +751,23 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="py-10 px-6 border-t" style={{ borderColor: "rgba(255,255,255,0.03)" }}>
-        <div className="container flex items-center justify-between text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md flex items-center justify-center text-[#0c0b0a] font-bold text-xs" style={{ background: "linear-gradient(135deg, #c4a079, #dcc5a8)" }}>N</div>
-            <span className="text-xs text-[#706858]">Nexus — Human Evolution Operating System</span>
+      {/* ── FOOTER ── */}
+      <footer className="py-12 px-6" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+        <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-7 h-7 rounded-md flex items-center justify-center font-bold text-xs"
+              style={{ background: "linear-gradient(135deg, var(--accent-warm), #d97706)", color: "var(--bg-abyss)" }}
+            >
+              N
+            </div>
+            <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+              Nexus — Human Evolution Operating System
+            </span>
           </div>
-          <div className="text-xs text-[#504840]">&copy; 2026 Nexus AI</div>
+          <div className="text-[11px] tracking-wide" style={{ color: "var(--text-whisper)" }}>
+            © 2026 Nexus AI
+          </div>
         </div>
       </footer>
     </div>
