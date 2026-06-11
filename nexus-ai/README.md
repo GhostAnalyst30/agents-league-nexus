@@ -137,17 +137,6 @@ nexus-ai/
 
 ---
 
-## Future-Ready Design
+# Futures Features
 
-Nexus is built for scale from day one:
-
-| Feature | Local Dev | Production |
-|---|---|---|
-| **Database** | SQLite | Supabase Postgres |
-| **Auth** | Credentials | Supabase Auth + OAuth |
-| **Hosting** | Local | Vercel |
-| **AI Models** | Free (Mistral, Llama) | Paid (GPT-4, Claude) |
-
-The architecture is migration-ready — swap SQLite for Supabase Postgres, add OAuth providers, and deploy to Vercel with zero friction.
-
----
+Implement Agents with Microsoft Foundry
