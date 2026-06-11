@@ -14,6 +14,39 @@ const AGENTS = [
   { name: "Future Simulation", color: "bg-cyan-500" },
 ];
 
+const REASONING_MESSAGES: Record<string, string[]> = {
+  "Goal Analysis": [
+    "Analyzing your message for goals and intentions...",
+    "Cross-referencing with past conversations...",
+    "Goals identified and categorized.",
+  ],
+  "Skill Gap": [
+    "Scanning your current skill set...",
+    "Comparing against desired objectives...",
+    "Gaps detected and prioritized.",
+  ],
+  "Learning Path": [
+    "Designing personalized curriculum...",
+    "Structuring milestones and timelines...",
+    "Learning path optimized for you.",
+  ],
+  "Opportunity Matching": [
+    "Searching relevant opportunities...",
+    "Scoring matches against your profile...",
+    "Best opportunities selected.",
+  ],
+  "Profile Evolution": [
+    "Evaluating your growth trajectory...",
+    "Calculating score changes...",
+    "Profile evolution mapped.",
+  ],
+  "Future Simulation": [
+    "Running scenario simulations...",
+    "Analyzing success probabilities...",
+    "Future paths projected.",
+  ],
+};
+
 type AgentFindings = {
   name: string;
   summary: string;
@@ -26,25 +59,27 @@ type Message = {
   agentFindings?: AgentFindings[];
 };
 
-type Status = "idle" | "active" | "done";
+type AgentState = {
+  status: "idle" | "thinking" | "done";
+  reasoningStep: number;
+  finding?: AgentFindings;
+};
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [statuses, setStatuses] = useState<Status[]>(
-    AGENTS.map(() => "idle" as Status)
+  const [agents, setAgents] = useState<AgentState[]>(
+    AGENTS.map(() => ({ status: "idle" as const, reasoningStep: 0 }))
   );
-  const [findings, setFindings] = useState<AgentFindings[]>([]);
+  const [allFindings, setAllFindings] = useState<AgentFindings[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
 
   const scrollToEnd = useCallback(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  useEffect(() => {
-    scrollToEnd();
-  }, [messages, loading, findings, scrollToEnd]);
+  useEffect(() => { scrollToEnd(); }, [messages, loading, allFindings, agents, scrollToEnd]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,8 +89,21 @@ export default function ChatPage() {
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setLoading(true);
-    setFindings([]);
-    setStatuses(AGENTS.map(() => "active"));
+    setAllFindings([]);
+
+    // Start all agents thinking sequentially
+    setAgents(AGENTS.map(() => ({ status: "thinking", reasoningStep: 0 })));
+
+    // Animate reasoning steps
+    for (let step = 1; step <= 3; step++) {
+      await new Promise((r) => setTimeout(r, 600));
+      setAgents((prev) =>
+        prev.map((a) => ({
+          ...a,
+          reasoningStep: a.status === "thinking" ? step : a.reasoningStep,
+        }))
+      );
+    }
 
     try {
       const res = await fetch("/api/chat", {
@@ -68,40 +116,38 @@ export default function ChatPage() {
 
       const data = await res.json();
 
-      // Mark all agents as done and collect findings
-      const agentFindings: AgentFindings[] = (data.agents || []).map(
-        (a: any) => ({
-          name: a.name,
-          summary: a.output.summary,
-          markdown: a.output.markdown,
-        })
+      const findings: AgentFindings[] = (data.agents || []).map((a: any) => ({
+        name: a.name,
+        summary: a.output.summary,
+        markdown: a.output.markdown,
+      }));
+      setAllFindings(findings);
+      setAgents((prev) =>
+        prev.map((a) => ({
+          ...a,
+          status: "done",
+          finding: findings.find((f) => f.name === AGENTS[prev.indexOf(a)]?.name),
+        }))
       );
-      setFindings(agentFindings);
-      setStatuses(AGENTS.map(() => "done"));
 
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: data.response,
-            agentFindings,
-          },
-        ]);
-        setLoading(false);
-        setFindings([]);
-        setStatuses(AGENTS.map(() => "idle"));
-      }, 600);
+      // Brief pause to show done state, then show unified response
+      await new Promise((r) => setTimeout(r, 800));
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.response, agentFindings: findings },
+      ]);
+      setLoading(false);
+      setAgents(AGENTS.map(() => ({ status: "idle", reasoningStep: 0 })));
+      setAllFindings([]);
     } catch {
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "Sorry, I couldn't process that. Please try again.",
-        },
+        { role: "assistant", content: "Sorry, I couldn't process that. Please try again." },
       ]);
       setLoading(false);
-      setStatuses(AGENTS.map(() => "idle"));
+      setAgents(AGENTS.map(() => ({ status: "idle", reasoningStep: 0 })));
+      setAllFindings([]);
     }
   }
 
@@ -110,18 +156,22 @@ export default function ChatPage() {
       {/* Main chat */}
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 overflow-y-auto space-y-4 pr-4 scroll-smooth">
-          {messages.length === 0 && !loading && (
-            <div className="h-full flex flex-col items-center justify-center text-center">
-              <BotIcon className="w-12 h-12 text-accent mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Nexus AI</h2>
-              <p className="text-sm text-muted max-w-sm">
-                Ask me anything about your goals, skills, or future path. Six
-                specialized agents work together to help you grow.
-              </p>
-            </div>
-          )}
-
           <AnimatePresence>
+            {messages.length === 0 && !loading && (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="h-full flex flex-col items-center justify-center text-center"
+              >
+                <BotIcon className="w-12 h-12 text-accent mb-4" />
+                <h2 className="text-xl font-semibold mb-2">Nexus AI</h2>
+                <p className="text-sm text-muted max-w-sm">
+                  Six agents work together to analyze your goals, skills, and opportunities.
+                </p>
+              </motion.div>
+            )}
+
             {messages.map((msg, i) => (
               <motion.div
                 key={i}
@@ -129,78 +179,78 @@ export default function ChatPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div
-                  className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
-                    msg.role === "user"
-                      ? "bg-accent/10 text-foreground"
-                      : "bg-card border border-border"
-                  }`}
-                >
-                  {msg.role === "assistant" ? (
-                    <Markdown content={msg.content} />
-                  ) : (
-                    msg.content
-                  )}
+                <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
+                  msg.role === "user" ? "bg-accent/10 text-foreground" : "bg-card border border-border"
+                }`}>
+                  {msg.role === "assistant" ? <Markdown content={msg.content} /> : msg.content}
                 </div>
               </motion.div>
             ))}
           </AnimatePresence>
 
-          {/* Reasoning animation */}
+          {/* Agent reasoning messages */}
           {loading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex justify-start"
-            >
-              <div className="bg-card border border-border rounded-2xl p-5 space-y-4 min-w-[280px]">
-                {AGENTS.map((agent, i) => (
-                  <div
+            <div className="space-y-3">
+              {AGENTS.map((agent, i) => {
+                const state = agents[i];
+                if (state.status === "idle") return null;
+                const msgs = REASONING_MESSAGES[agent.name] || [];
+                const stepMsg = msgs[Math.min(state.reasoningStep, msgs.length - 1)];
+
+                return (
+                  <motion.div
                     key={agent.name}
-                    className="flex items-center gap-3"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.15 }}
+                    className="flex gap-3 items-start"
                   >
-                    <div
-                      className={`w-7 h-7 rounded-lg ${agent.color}/15 flex items-center justify-center`}
-                    >
+                    <div className={`w-7 h-7 rounded-lg ${agent.color}/15 flex items-center justify-center shrink-0 mt-0.5`}>
                       {AGENT_ICONS[agent.name]({
                         className: `w-4 h-4 ${agent.color.replace("bg-", "text-")}`,
                       })}
                     </div>
-                    <span className="text-xs font-medium flex-1">
-                      {agent.name}
-                    </span>
-                    <span className="flex gap-0.5">
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${agent.color} animate-bounce`}
-                        style={{ animationDelay: `${i * 0.1}s` }}
-                      />
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${agent.color} animate-bounce`}
-                        style={{ animationDelay: `${i * 0.1 + 0.15}s` }}
-                      />
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${agent.color} animate-bounce`}
-                        style={{ animationDelay: `${i * 0.1 + 0.3}s` }}
-                      />
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-medium">{agent.name}</span>
+                        {state.status === "thinking" && (
+                          <span className="flex gap-0.5">
+                            <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: "0s" }} />
+                            <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: "0.15s" }} />
+                            <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: "0.3s" }} />
+                          </span>
+                        )}
+                        {state.status === "done" && (
+                          <span className="text-[10px] text-emerald-500 font-medium">✓ Done</span>
+                        )}
+                      </div>
+                      <p className={`text-xs leading-relaxed ${state.status === "done" ? "text-emerald-500/70" : "text-muted"}`}>
+                        {stepMsg}
+                      </p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           )}
 
-          {/* Individual findings during transition */}
-          {findings.length > 0 && (
-            <div className="flex justify-start">
-              <div className="bg-card border border-border rounded-2xl p-5 space-y-3 min-w-[280px]">
-                {findings.map((f) => (
-                  <div key={f.name} className="text-sm">
+          {/* Individual findings before unified response */}
+          {allFindings.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex justify-start"
+            >
+              <div className="bg-card/50 border border-border rounded-2xl p-4 space-y-2 max-w-[85%]">
+                <p className="text-xs text-muted font-medium uppercase tracking-wider mb-2">Agent Analysis Complete</p>
+                {allFindings.map((f) => (
+                  <div key={f.name} className="text-xs leading-relaxed">
                     <span className="font-medium text-accent">{f.name}:</span>{" "}
                     <span className="text-muted">{f.summary}</span>
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )}
 
           <div ref={endRef} />
@@ -224,15 +274,13 @@ export default function ChatPage() {
         </form>
       </div>
 
-      {/* Agent sidebar */}
+      {/* Agent sidebar - shows individual findings */}
       <div className="w-60 shrink-0 space-y-3">
-        <p className="text-xs text-muted font-medium uppercase tracking-wider">
-          Agents
-        </p>
+        <p className="text-xs text-muted font-medium uppercase tracking-wider">Agents</p>
         {AGENTS.map((agent, i) => {
-          const status = loading ? statuses[i] : "idle";
+          const state = agents[i];
           const Icon = AGENT_ICONS[agent.name];
-          const finding = findings.find((f) => f.name === agent.name);
+          const finding = allFindings.find((f) => f.name === agent.name) || state.finding;
 
           return (
             <motion.div
@@ -241,46 +289,40 @@ export default function ChatPage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
               className={`rounded-xl border text-sm transition-all ${
-                status === "active"
+                state.status === "thinking"
                   ? "bg-accent/5 border-accent/20"
-                  : status === "done"
+                  : state.status === "done"
                     ? "bg-emerald-500/5 border-emerald-500/20"
                     : "bg-transparent border-transparent opacity-40"
               }`}
             >
               <div className="flex items-center gap-3 px-3 py-2.5">
-                <div
-                  className={`w-7 h-7 rounded-lg ${agent.color}/15 flex items-center justify-center`}
-                >
-                  <Icon
-                    className={`w-4 h-4 ${agent.color.replace("bg-", "text-")}`}
-                  />
+                <div className={`w-7 h-7 rounded-lg ${agent.color}/15 flex items-center justify-center shrink-0`}>
+                  <Icon className={`w-4 h-4 ${agent.color.replace("bg-", "text-")}`} />
                 </div>
-                <span className="flex-1 truncate text-xs font-medium">
-                  {agent.name}
-                </span>
-                {status === "active" && (
-                  <span
-                    className={`w-2 h-2 rounded-full ${agent.color} animate-pulse`}
-                  />
+                <span className="flex-1 truncate text-xs font-medium">{agent.name}</span>
+                {state.status === "thinking" && (
+                  <span className={`w-2 h-2 rounded-full ${agent.color} animate-pulse`} />
                 )}
-                {status === "done" && finding && (
+                {state.status === "done" && (
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 )}
               </div>
 
-              {/* Expandable finding */}
+              {/* Individual agent finding (full markdown) */}
               <AnimatePresence>
-                {status === "done" && finding && (
+                {state.status === "done" && finding && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="px-3 pb-2.5"
+                    className="px-3 pb-3"
                   >
-                    <p className="text-[11px] text-muted leading-relaxed border-t border-border/50 pt-2 mt-0">
-                      {finding.summary}
-                    </p>
+                    <div className="border-t border-border/50 pt-2 mt-0">
+                      <div className="text-[11px] text-muted leading-relaxed">
+                        <Markdown content={finding.markdown} />
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

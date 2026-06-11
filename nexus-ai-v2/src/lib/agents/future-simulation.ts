@@ -2,7 +2,7 @@ import type { Agent, AgentContext, AgentOutput } from "./types";
 import { getLLM } from "../llm";
 import { parseJSON } from "./types";
 
-const SYSTEM_PROMPT = `You are a Future Simulation Agent. Simulate future scenarios based on user goals.
+const SYSTEM_PROMPT = `You are a Future Simulation Agent. Simulate future scenarios based on user goals and conversation history.
 
 Return JSON:
 {
@@ -17,7 +17,12 @@ export const futureSimulationAgent: Agent = {
   description: "Simulates scenarios and estimates success",
   async analyze(context: AgentContext): Promise<AgentOutput> {
     const llm = getLLM();
-    const userMessage = `Message: ${context.message}
+
+    const historyBlock = context.conversationHistory && context.conversationHistory.length > 0
+      ? `\n\nPrevious conversation:\n${context.conversationHistory.slice(-6).map((m) => `${m.role}: ${m.content.slice(0, 200)}`).join("\n")}`
+      : "";
+
+    const userMessage = `Message: ${context.message}${historyBlock}
 
 Goals: ${JSON.stringify(context.goals || [])}
 Skills: ${JSON.stringify(context.skills || [])}

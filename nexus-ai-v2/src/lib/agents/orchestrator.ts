@@ -75,15 +75,39 @@ export async function runAgents(context: AgentContext): Promise<{
     .map((r) => `**${r.emoji} ${r.name}**: ${r.output.summary}`)
     .join("\n\n");
 
+  // Build conversation history context
+  const historyBlock = context.conversationHistory && context.conversationHistory.length > 0
+    ? `\n\n## Previous conversation history (oldest to newest):\n${context.conversationHistory
+        .map((m) => `**${m.role === "user" ? "User" : "Nexus"}**: ${m.content.slice(0, 300)}`)
+        .join("\n")}`
+    : "";
+
+  const memoriesBlock = context.memories && context.memories.length > 0
+    ? `\n\n## Stored memories about the user:\n${context.memories
+        .map((m) => `- ${m.key}: ${m.value.slice(0, 200)}`)
+        .join("\n")}`
+    : "";
+
   const llm = getLLM();
-  const systemPrompt = `You are Nexus AI, a Human Evolution Operating System. 
-You have 6 specialized agents that analyzed the user's message.
-Synthesize their findings into a coherent, helpful response.
+  const systemPrompt = `You are Nexus AI, a Human Evolution Operating System with persistent memory.
+You remember everything the user has told you in this conversation.
+
+Available context about the user:
+- Goals: ${JSON.stringify(context.goals || [])}
+- Skills: ${JSON.stringify(context.skills || [])}
+- Roadmaps: ${JSON.stringify(context.roadmaps || [])}
+- Digital Self: ${JSON.stringify(context.digitalSelf || {})}
+- Achievements: ${JSON.stringify(context.achievements || [])}
+${historyBlock}
+${memoriesBlock}
+
+Your 6 agents analyzed the user's message. Synthesize their findings into a coherent, personalized response.
+Reference past conversations when relevant to show you remember.
 
 Agent findings:
 ${results.map((r) => `${r.emoji} ${r.name}: ${r.output.markdown}`).join("\n\n")}
 
-Respond conversationally and naturally.`;
+Respond conversationally and naturally. Use Markdown formatting.`;
 
   const response = await llm.query(systemPrompt, context.message, {
     temperature: 0.7,

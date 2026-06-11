@@ -8,6 +8,7 @@ export interface AgentContext {
   digitalSelf?: { knowledge: number; career: number; opportunity: number };
   memories?: { key: string; value: string }[];
   achievements?: { title: string }[];
+  conversationHistory?: { role: "user" | "assistant"; content: string }[];
 }
 
 export interface AgentOutput {

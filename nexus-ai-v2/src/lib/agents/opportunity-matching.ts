@@ -2,7 +2,7 @@ import type { Agent, AgentContext, AgentOutput } from "./types";
 import { getLLM } from "../llm";
 import { parseJSON } from "./types";
 
-const SYSTEM_PROMPT = `You are an Opportunity Matching Agent. Match user profiles to relevant opportunities.
+const SYSTEM_PROMPT = `You are an Opportunity Matching Agent. Match user profiles to relevant opportunities. Use conversation history to personalize matches.
 
 Return JSON:
 {
@@ -17,7 +17,12 @@ export const opportunityMatchingAgent: Agent = {
   description: "Matches you with relevant events and opportunities",
   async analyze(context: AgentContext): Promise<AgentOutput> {
     const llm = getLLM();
-    const userMessage = `Message: ${context.message}
+
+    const historyBlock = context.conversationHistory && context.conversationHistory.length > 0
+      ? `\n\nPrevious conversation:\n${context.conversationHistory.slice(-6).map((m) => `${m.role}: ${m.content.slice(0, 200)}`).join("\n")}`
+      : "";
+
+    const userMessage = `Message: ${context.message}${historyBlock}
 
 Opportunities: ${JSON.stringify(context.opportunities || [])}
 Goals: ${JSON.stringify(context.goals || [])}

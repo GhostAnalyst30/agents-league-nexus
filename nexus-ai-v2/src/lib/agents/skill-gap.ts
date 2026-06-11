@@ -2,7 +2,7 @@ import type { Agent, AgentContext, AgentOutput } from "./types";
 import { getLLM } from "../llm";
 import { parseJSON } from "./types";
 
-const SYSTEM_PROMPT = `You are a Skill Gap Agent. Compare the user's current skills against their goals and identify gaps.
+const SYSTEM_PROMPT = `You are a Skill Gap Agent. Compare the user's current skills against their goals and identify gaps. Use conversation history for deeper context.
 
 Return JSON:
 {
@@ -19,10 +19,16 @@ export const skillGapAgent: Agent = {
   description: "Analyzes current skills vs. desired goals",
   async analyze(context: AgentContext): Promise<AgentOutput> {
     const llm = getLLM();
-    const userMessage = `Message: ${context.message}
+
+    const historyBlock = context.conversationHistory && context.conversationHistory.length > 0
+      ? `\n\nPrevious conversation:\n${context.conversationHistory.slice(-6).map((m) => `${m.role}: ${m.content.slice(0, 200)}`).join("\n")}`
+      : "";
+
+    const userMessage = `Message: ${context.message}${historyBlock}
 
 Skills: ${JSON.stringify(context.skills || [])}
-Goals: ${JSON.stringify(context.goals || [])}`;
+Goals: ${JSON.stringify(context.goals || [])}
+Memories: ${JSON.stringify(context.memories?.filter((m) => !m.key.startsWith("chat_")) || [])}`;
 
     const result = await llm.query(SYSTEM_PROMPT, userMessage, {
       temperature: 0.3,

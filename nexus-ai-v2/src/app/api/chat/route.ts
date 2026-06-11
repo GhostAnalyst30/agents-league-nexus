@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { runAgents } from "@/lib/agents/orchestrator";
 import type { AgentContext } from "@/lib/agents/types";
 
+const MAX_HISTORY = 20;
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -15,6 +17,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Message is required" }, { status: 400 });
   }
 
+  const userId = session.user.id;
+
   const [
     goals,
     skills,
@@ -23,17 +27,18 @@ export async function POST(req: Request) {
     digitalSelf,
     memories,
     achievements,
+    historyMemories,
   ] = await Promise.all([
     prisma.goal.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       select: { title: true, status: true },
     }),
     prisma.skill.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       select: { name: true, level: true },
     }),
     prisma.roadmap.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       select: { title: true, status: true },
     }),
     prisma.opportunity.findMany({
@@ -46,22 +51,32 @@ export async function POST(req: Request) {
       }))
     ),
     prisma.digitalSelf.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
       select: { knowledge: true, career: true, opportunity: true },
     }),
     prisma.memory.findMany({
-      where: { userId: session.user.id },
+      where: { userId, key: { not: { startsWith: "chat_" } } },
       select: { key: true, value: true },
     }),
     prisma.achievement.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       select: { title: true },
+    }),
+    prisma.memory.findMany({
+      where: { userId, key: { startsWith: "chat_" } },
+      orderBy: { key: "asc" },
+      select: { key: true, value: true },
     }),
   ]);
 
+  // Reconstruct conversation history from stored memories
+  const conversationHistory = historyMemories
+    .filter((m) => m.key.startsWith("chat_"))
+    .map((m) => JSON.parse(m.value) as { role: "user" | "assistant"; content: string });
+
   const context: AgentContext = {
     message,
-    userId: session.user.id,
+    userId,
     goals,
     skills,
     roadmaps,
@@ -69,23 +84,57 @@ export async function POST(req: Request) {
     digitalSelf: digitalSelf || undefined,
     memories,
     achievements,
+    conversationHistory,
   };
 
   try {
     const { results, response, totalScoreChanges } = await runAgents(context);
 
-    // Save memory of this interaction
+    // Save conversation history (prune old ones)
+    const turnIndex = historyMemories.length;
+    const userKey = `chat_${turnIndex}_user`;
+    const assistantKey = `chat_${turnIndex}_assistant`;
+
     await prisma.memory.upsert({
-      where: {
-        userId_key: { userId: session.user.id, key: "last_interaction" },
-      },
-      update: { value: message.slice(0, 500) },
-      create: {
-        userId: session.user.id,
-        key: "last_interaction",
-        value: message.slice(0, 500),
-      },
+      where: { userId_key: { userId, key: userKey } },
+      update: { value: JSON.stringify({ role: "user", content: message }) },
+      create: { userId, key: userKey, value: JSON.stringify({ role: "user", content: message }), category: "chat" },
     });
+
+    await prisma.memory.upsert({
+      where: { userId_key: { userId, key: assistantKey } },
+      update: { value: JSON.stringify({ role: "assistant", content: response }) },
+      create: { userId, key: assistantKey, value: JSON.stringify({ role: "assistant", content: response }), category: "chat" },
+    });
+
+    // Prune old history if over limit
+    if (turnIndex > MAX_HISTORY * 2) {
+      const toDelete = await prisma.memory.findMany({
+        where: { userId, key: { startsWith: "chat_" } },
+        orderBy: { key: "asc" },
+        take: (turnIndex - MAX_HISTORY * 2),
+      });
+      if (toDelete.length > 0) {
+        await prisma.memory.deleteMany({
+          where: { id: { in: toDelete.map((m) => m.id) } },
+        });
+      }
+    }
+
+    // Save key memories extracted by agents
+    const newMemories = results.flatMap((r) =>
+      r.output.achievements?.map((a) => ({
+        key: `achievement_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        value: JSON.stringify(a),
+        category: "achievement" as const,
+      })) || []
+    );
+
+    for (const mem of newMemories) {
+      await prisma.memory.create({
+        data: { userId, ...mem },
+      });
+    }
 
     // Update Digital Self scores
     if (
@@ -94,14 +143,14 @@ export async function POST(req: Request) {
       totalScoreChanges.opportunity
     ) {
       await prisma.digitalSelf.upsert({
-        where: { userId: session.user.id },
+        where: { userId },
         update: {
           knowledge: { increment: totalScoreChanges.knowledge },
           career: { increment: totalScoreChanges.career },
           opportunity: { increment: totalScoreChanges.opportunity },
         },
         create: {
-          userId: session.user.id,
+          userId,
           knowledge: totalScoreChanges.knowledge,
           career: totalScoreChanges.career,
           opportunity: totalScoreChanges.opportunity,

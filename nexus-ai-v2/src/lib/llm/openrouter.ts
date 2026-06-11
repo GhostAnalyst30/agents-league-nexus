@@ -3,10 +3,10 @@ import type { LLMProvider, LLMOptions } from "./provider";
 const BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const FREE_MODELS = [
-  "nvidia/nemotron-3-ultra-550b-a55b:free",
-  "openai/gpt-oss-120b:free",
   "google/gemma-4-31b-it:free",
+  "openai/gpt-oss-120b:free",
   "qwen/qwen3-next-80b-a3b-instruct:free",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
 ];
 
 export class OpenRouterProvider implements LLMProvider {
